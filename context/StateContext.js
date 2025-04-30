@@ -2,16 +2,58 @@ import { useRouter } from 'next/router';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onIdTokenChanged } from 'firebase/auth';
 import {auth} from '@/backend/Firebase'
+import { ethers } from 'ethers';
 
 const Context = createContext();
 
 export const StateContext = ({ children }) => {
-
   // Variables to Carry Across Multiple Pages
-  const [user, setUser] = useState(undefined)
+  const [user, setUser] = useState(undefined);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
 
-  const router = useRouter()
-  const { asPath } = useRouter()
+  const router = useRouter();
+  const { asPath } = useRouter();
+
+  // Check for existing wallet connection on mount
+  useEffect(() => {
+    const checkWalletConnection = async () => {
+      if (window.ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const accounts = await provider.send("eth_accounts", []);
+          if (accounts.length > 0) {
+            setWalletAddress(accounts[0]);
+            setIsConnected(true);
+          }
+        } catch (error) {
+          console.error('Error checking wallet connection:', error);
+        }
+      }
+    };
+
+    checkWalletConnection();
+
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length > 0) {
+          setWalletAddress(accounts[0]);
+          setIsConnected(true);
+        } else {
+          setWalletAddress('');
+          setIsConnected(false);
+        }
+      });
+    }
+
+//wallet connect
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', () => {});
+      }
+    };
+  }, []);
 
   // AUTHENTICATION REMEMBER ME USEEFFECT
   // useEffect(() => {
@@ -29,19 +71,20 @@ export const StateContext = ({ children }) => {
   //   return () => unsubscribe();
   // }, []);
 
-
-
-
-return(
+  return (
     <Context.Provider
-    value={{
+      value={{
         user,
-        setUser
-    }}
+        setUser,
+        walletAddress,
+        setWalletAddress,
+        isConnected,
+        setIsConnected
+      }}
     >
       {children}
     </Context.Provider>
-    )
-}
+  );
+};
 
 export const useStateContext = () => useContext(Context);

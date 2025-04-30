@@ -1,26 +1,101 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import Navbar from '@/components/Dashboard/Navbar';
+import { useStateContext } from '@/context/StateContext';
+import { doc, setDoc, getDocs, collection, query, where, updateDoc } from "firebase/firestore";
+import { database } from '@/backend/Firebase';
+
 export default function Services() {
-  const [orders, setOrders] = useState([
-    {
-      id: 1,
-      ethPayerAddress: '',
-      sellerAddress: '',
-      shippingLabelCode: '',
-      EthAmount:''
+  const { walletAddress, isConnected } = useStateContext();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isConnected && walletAddress) {
+      fetchUserContracts();
     }
-  ]);
+  }, [isConnected, walletAddress]);
+
+  const fetchUserContracts = async () => {
+    try {
+      const contractsRef = collection(database, "contracts");
+      const q = query(contractsRef, where("sellerAddress", "==", walletAddress));
+      const querySnapshot = await getDocs(q);
+      
+      const userContracts = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setOrders(userContracts);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching contracts:", error);
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e, orderId) => {
+    e.preventDefault();
+    if (!isConnected) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    try {
+      const contractData = {
+        ethPayerAddress: order.ethPayerAddress,
+        sellerAddress: walletAddress,
+        shippingLabelCode: order.shippingLabelCode,
+        EthAmount: order.EthAmount,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        isDelivered: false
+      };
+
+      const docRef = doc(collection(database, "contracts"));
+      await setDoc(docRef, contractData);
+      
+      // Refresh the contracts list
+      await fetchUserContracts();
+      alert("Contract created successfully!");
+    } catch (error) {
+      console.error("Error creating contract:", error);
+      alert("Failed to create contract");
+    }
+  };
+
+  const handleDeliveryStatus = async (contractId) => {
+    try {
+      const contractRef = doc(database, "contracts", contractId);
+      await updateDoc(contractRef, {
+        isDelivered: true,
+        status: "delivered"
+      });
+      
+      // Refresh the contracts list
+      await fetchUserContracts();
+      alert("Delivery status updated successfully!");
+    } catch (error) {
+      console.error("Error updating delivery status:", error);
+      alert("Failed to update delivery status");
+    }
+  };
 
   const addNewOrder = () => {
     setOrders(prevOrders => [
       ...prevOrders, 
       {
-        id: Math.max(...prevOrders.map(o => o.id)) + 1,
+        id: Math.max(...prevOrders.map(o => o.id), 0) + 1,
         ethPayerAddress: '',
         sellerAddress: '',
         shippingLabelCode: '',
-        EthAmount:''
+        EthAmount: '',
+        status: 'pending',
+        isDelivered: false
       }
     ]);
   };
@@ -35,19 +110,41 @@ export default function Services() {
     );
   };
 
+  if (!isConnected) {
+    return (
+      <>
+        <Navbar />
+        <PageContainer>
+          <Title>Please connect your wallet to view and create contracts</Title>
+        </PageContainer>
+      </>
+    );
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <PageContainer>
+          <Title>Loading contracts...</Title>
+        </PageContainer>
+      </>
+    );
+  }
+
   return (
     <>
       <Navbar />
       <PageContainer>
         <Header>
-          <Title>PayOnDelivery Orders</Title>
+          <Title>PayOnDelivery Contracts</Title>
           <AddButton onClick={addNewOrder}>+</AddButton>
         </Header>
         
         <OrdersContainer>
           {orders.map(order => (
             <OrderCard key={order.id}>
-              <CardHeader>Order #{order.id}</CardHeader>
+              <CardHeader>Contract #{order.id}</CardHeader>
               <Form onSubmit={(e) => handleSubmit(e, order.id)}>
                 <FormGroup>
                   <label htmlFor={`ethPayerAddress-${order.id}`}>ETH Payer Address</label>
@@ -58,6 +155,7 @@ export default function Services() {
                     onChange={(e) => handleInputChange(order.id, 'ethPayerAddress', e.target.value)}
                     placeholder="0x..."
                     required
+                    disabled={order.status !== 'pending'}
                   />
                 </FormGroup>
 
@@ -70,6 +168,7 @@ export default function Services() {
                     onChange={(e) => handleInputChange(order.id, 'sellerAddress', e.target.value)}
                     placeholder="0x..."
                     required
+                    disabled={order.status !== 'pending'}
                   />
                 </FormGroup>
 
@@ -82,6 +181,7 @@ export default function Services() {
                     onChange={(e) => handleInputChange(order.id, 'shippingLabelCode', e.target.value)}
                     placeholder="Enter shipping label code"
                     required
+                    disabled={order.status !== 'pending'}
                   />
                 </FormGroup>
                 <FormGroup>
@@ -93,17 +193,34 @@ export default function Services() {
                     onChange={(e) => handleInputChange(order.id, 'EthAmount', e.target.value)}
                     placeholder="Enter Cost of The Order"
                     required
+                    disabled={order.status !== 'pending'}
                   />
                 </FormGroup>
 
-                <SubmitButton type="submit">
-                  Create Order
-                </SubmitButton>
+                <StatusGroup>
+                  <StatusLabel>Status:</StatusLabel>
+                  <StatusValue>{order.status}</StatusValue>
+                </StatusGroup>
+
+                {order.status === 'pending' ? (
+                  <SubmitButton type="submit">
+                    Create Contract
+                  </SubmitButton>
+                ) : (
+                  walletAddress.toLowerCase() === order.sellerAddress.toLowerCase() && (
+                    <DeliveryButton 
+                      type="button"
+                      onClick={() => handleDeliveryStatus(order.id)}
+                      disabled={order.isDelivered}
+                    >
+                      {order.isDelivered ? 'Delivered' : 'Mark as Delivered'}
+                    </DeliveryButton>
+                  )
+                )}
               </Form>
             </OrderCard>
           ))}
         </OrdersContainer>
-
       </PageContainer>
     </>
   );
@@ -219,5 +336,41 @@ const SubmitButton = styled.button`
 
   &:hover {
     background-color: #357abd;
+  }
+`;
+
+const StatusGroup = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+`;
+
+const StatusLabel = styled.span`
+  font-weight: 500;
+  color: #555;
+`;
+
+const StatusValue = styled.span`
+  color: #4a90e2;
+  font-weight: 600;
+`;
+
+const DeliveryButton = styled.button`
+  background-color: ${props => props.disabled ? '#ccc' : '#4CAF50'};
+  color: white;
+  padding: 1rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: ${props => props.disabled ? 'not-allowed' : 'pointer'};
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: ${props => props.disabled ? '#ccc' : '#45a049'};
   }
 `;

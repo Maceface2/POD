@@ -1,10 +1,28 @@
 import React from 'react';
 import styled from 'styled-components';
-import Link from 'next/link'
-//import { useStateContext } from '@/context/StateContext';
+import Link from 'next/link';
+import { ethers } from 'ethers';
+import { useStateContext } from '@/context/StateContext';
 
 const Navbar = () => {
-  //const { user, setUser } = useStateContext()
+  // wallet connect 
+  const { walletAddress, setWalletAddress, isConnected, setIsConnected } = useStateContext();
+
+  const connectWallet = async () => {
+    try {
+      if (window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const accounts = await provider.send("eth_requestAccounts", []);
+        const address = accounts[0];
+        setWalletAddress(address);
+        setIsConnected(true);
+      } else {
+        alert('Please install MetaMask to use this feature');
+      }
+    } catch (error) {
+      console.error('Error connecting to MetaMask:', error);
+    }
+  };
 
   return (
     <Nav>
@@ -13,7 +31,16 @@ const Navbar = () => {
         <NavLink href="/">Home</NavLink>
         <NavLink href="/about">About</NavLink>
         <NavLink href="/services">Services</NavLink>
-        <NavLink href="">Connect Wallet</NavLink>
+        {/* wallet connect html */}
+        {isConnected ? (
+          <NavLink href="" style={{ cursor: 'default' }}>
+            {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+          </NavLink>
+        ) : (
+          <NavLink href="" onClick={connectWallet}>
+            Connect Wallet
+          </NavLink>
+        )}
       </NavLinks>
     </Nav>
   );

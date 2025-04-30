@@ -1,8 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import Link from 'next/link';
+import { ethers } from 'ethers';
 
 const Hero = () => {
+  // wallet connect
+  const [walletAddress, setWalletAddress] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+
+  const connectWallet = async () => {
+    try {
+      if (window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const accounts = await provider.send("eth_requestAccounts", []);
+        const address = accounts[0];
+        setWalletAddress(address);
+        setIsConnected(true);
+      } else {
+        alert('Please install MetaMask to use this feature');
+      }
+    } catch (error) {
+      console.error('Error connecting to MetaMask:', error);
+    }
+  };
+  //
+
   return (
     <Section>
         <Container>
@@ -20,9 +42,14 @@ const Hero = () => {
                 <Item>Blockchain-secured transactions</Item>
                 <Item>No middleman fees</Item>
               </FeaturesList>
-              <Link href="">
-                <SignupButton>Connect Wallet</SignupButton>
-              </Link>
+              {/* wallet connect */}
+              {isConnected ? (
+                <WalletAddress>
+                  Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </WalletAddress>
+              ) : (
+                <SignupButton onClick={connectWallet}>Connect Wallet</SignupButton>
+              )}
             </SubheaderAndStarsColumn>
           </HeroTextColumn>
         </Container>
@@ -266,6 +293,12 @@ const SignupButton = styled.button`
   &:hover {
     background-color: #003366;
   }
+`;
+// wallet css
+const WalletAddress = styled.span`
+  font-size: 1rem;
+  color: #001f3f;
+  margin-top: 10px;
 `;
 
 export default Hero;
