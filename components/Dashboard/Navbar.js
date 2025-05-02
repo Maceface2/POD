@@ -24,6 +24,11 @@ const Navbar = () => {
     }
   };
 
+  const disconnectWallet = () => {
+    setWalletAddress('');
+    setIsConnected(false);
+  };
+
   return (
     <Nav>
       <Logo href="/">POD</Logo>
@@ -33,9 +38,14 @@ const Navbar = () => {
         <NavLink href="/services">Services</NavLink>
         {/* wallet connect html */}
         {isConnected ? (
-          <NavLink href="" style={{ cursor: 'default' }}>
-            {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-          </NavLink>
+          <WalletContainer>
+            <WalletAddress>
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            </WalletAddress>
+            <LogoutButton onClick={disconnectWallet}>
+              Disconnect
+            </LogoutButton>
+          </WalletContainer>
         ) : (
           <NavLink href="" onClick={connectWallet}>
             Connect Wallet
@@ -66,6 +76,7 @@ const Logo = styled(Link)`
 const NavLinks = styled.div`
   display: flex;
   gap: 1rem;
+  align-items: center;
 `;
 
 const NavLink = styled(Link)`
@@ -78,6 +89,35 @@ const NavLink = styled(Link)`
   
   &:hover {
     background-color:rgb(3, 6, 59);
+  }
+`;
+
+const WalletContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const WalletAddress = styled.span`
+  color: white;
+  padding: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 0.9rem;
+`;
+
+const LogoutButton = styled.button`
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #c0392b;
   }
 `;
 
