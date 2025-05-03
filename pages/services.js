@@ -11,6 +11,7 @@ export default function Services() {
   const { walletAddress, isConnected, connectWallet } = useStateContext();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [contractBalances, setContractBalances] = useState({});
 
   useEffect(() => {
     if (isConnected && walletAddress) {
@@ -50,10 +51,40 @@ export default function Services() {
         new Date(b.createdAt) - new Date(a.createdAt)
       );
       setOrders(allContracts);
+      
+      // Fetch balance for each contract with contractAddress
+      allContracts.forEach(contract => {
+        if (contract.contractAddress && contract.status !== 'draft') {
+          fetchContractBalance(contract.contractAddress, contract.id);
+        }
+      });
+      
       setLoading(false);
     } catch (error) {
       console.error("Error fetching contracts:", error);
       setLoading(false);
+    }
+  };
+
+  const fetchContractBalance = async (contractAddress, orderId) => {
+    try {
+      if (!contractAddress) return;
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contractHandler = new ContractHandler(contractAddress, signer);
+      
+      // Read the contract balance from the blockchain
+      const balance = await contractHandler.getContractBalance();
+      
+      // Update the balances state with the new information
+      setContractBalances(prev => ({
+        ...prev,
+        [orderId]: ethers.formatEther(balance)
+      }));
+      
+    } catch (error) {
+      console.error("Error fetching contract balance:", error);
     }
   };
 
@@ -271,10 +302,18 @@ export default function Services() {
                   </FormGroup>
                   
                   {order.status !== 'draft' && (
-                    <FormGroup>
-                      <label>Contract Address</label>
-                      <ContractAddressDisplay>{order.contractAddress || "Not deployed yet"}</ContractAddressDisplay>
-                    </FormGroup>
+                    <>
+                      <FormGroup>
+                        <label>Contract Address</label>
+                        <ContractAddressDisplay>{order.contractAddress || "Not deployed yet"}</ContractAddressDisplay>
+                      </FormGroup>
+                      <FormGroup>
+                        <label>Contract Balance</label>
+                        <ContractBalanceDisplay>
+                          {contractBalances[order.id] ? `${contractBalances[order.id]} BNB` : "Loading..."}
+                        </ContractBalanceDisplay>
+                      </FormGroup>
+                    </>
                   )}
 
                   <StatusGroup>
@@ -533,5 +572,17 @@ const ContractAddressDisplay = styled.div`
   font-size: 0.9rem;
   word-break: break-all;
   color: #333;
+  margin-top: 0.5rem;
+`;
+
+const ContractBalanceDisplay = styled.div`
+  padding: 0.75rem;
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: #28a745;
+  font-weight: bold;
   margin-top: 0.5rem;
 `;
